@@ -8,9 +8,19 @@ interface SidebarProps {
   onSelect: (project: Project) => void;
   onCreateNew: () => void;
   onDelete?: (project: Project) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export default function Sidebar({ projects, selectedProject, onSelect, onCreateNew, onDelete }: SidebarProps) {
+export default function Sidebar({
+  projects,
+  selectedProject,
+  onSelect,
+  onCreateNew,
+  onDelete,
+  mobileOpen = false,
+  onMobileClose,
+}: SidebarProps) {
   const icons: Record<string, string> = {
     tabular: "table",
     relational: "share-2",
@@ -18,36 +28,64 @@ export default function Sidebar({ projects, selectedProject, onSelect, onCreateN
   };
 
   return (
-    <aside
-      className="w-64 flex flex-col h-full border-r border-white/10 relative z-10 shrink-0"
-      style={{ background: "var(--bg-sidebar)", color: "#f7efe7" }}
-    >
-      <div className="p-5 border-b border-white/10">
-        <div className="flex items-center gap-2.5">
-          <div className="tilt-scene">
-            <div className="animate-spin3d w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
-                 style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))", boxShadow: "var(--glow)" }}>
-              H
+    <>
+      {mobileOpen && (
+        <div
+          onClick={onMobileClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`w-72 md:w-64 flex flex-col h-full border-r border-white/10 shrink-0 z-50 fixed md:static inset-y-0 left-0 transition-transform duration-300 ease-in-out ${
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0"
+        }`}
+        style={{ background: "var(--bg-sidebar)", color: "#f7efe7" }}
+      >
+        <div className="p-4 md:p-5 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="tilt-scene">
+              <div
+                className="animate-spin3d w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))", boxShadow: "var(--glow)" }}
+              >
+                H
+              </div>
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tight leading-none">
+                <span className="gradient-text">HackData</span>
+                <span className="text-white/90">V2</span>
+              </h1>
+              <p className="text-[10px] text-gray-400 mt-0.5 tracking-widest uppercase">Synthetic Data</p>
             </div>
           </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight leading-none">
-              <span className="gradient-text">HackData</span>
-              <span className="text-white/90">V2</span>
-            </h1>
-            <p className="text-[10px] text-gray-400 mt-0.5 tracking-widest uppercase">Synthetic Data</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="p-3">
-        <button
-          onClick={onCreateNew}
-          className="btn-3d w-full px-4 py-2.5 text-sm font-bold"
-        >
-          + New Project
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Close menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-3">
+          <button
+            onClick={() => {
+              onCreateNew();
+              if (onMobileClose) onMobileClose();
+            }}
+            className="btn-3d w-full px-4 py-2.5 text-sm font-bold"
+          >
+            + New Project
+          </button>
+        </div>
 
       <div className="flex-1 overflow-y-auto px-2">
         <p className="px-2 py-2 text-xs text-[#baa89b] uppercase tracking-wider font-semibold">Projects</p>
@@ -63,7 +101,10 @@ export default function Sidebar({ projects, selectedProject, onSelect, onCreateN
                 className="animate-fade-up group relative mb-1.5 flex items-center"
               >
                 <button
-                  onClick={() => onSelect(project)}
+                  onClick={() => {
+                    onSelect(project);
+                    if (onMobileClose) onMobileClose();
+                  }}
                   style={{
                     ...(active
                       ? { background: "linear-gradient(120deg, var(--accent), var(--accent-2))", boxShadow: "var(--glow)" }
@@ -104,6 +145,7 @@ export default function Sidebar({ projects, selectedProject, onSelect, onCreateN
         )}
       </div>
     </aside>
+    </>
   );
 }
 

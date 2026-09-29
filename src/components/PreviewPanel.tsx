@@ -94,20 +94,20 @@ export default function PreviewPanel({ projectId }: Props) {
 
   return (
     <div className="pt-2">
-      <div className="sticky top-0 z-20 -mx-6 px-6 pb-3 pt-2 mb-4 bg-[var(--bg,white)]/85 backdrop-blur border-b border-[var(--border)]/60 flex items-center justify-between flex-wrap gap-3">
+      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 pt-2 mb-4 bg-[var(--bg,white)]/85 backdrop-blur border-b border-[var(--border)]/60 flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-black"><span className="gradient-text">Live</span> Preview</h2>
+            <h2 className="text-xl sm:text-2xl font-black"><span className="gradient-text">Live</span> Preview</h2>
             {activeStatus && <ValidatorStatusPill status={activeStatus} />}
           </div>
-          <p className="text-[var(--text-secondary)] text-sm">
+          <p className="text-[var(--text-secondary)] text-xs sm:text-sm">
             {datasets.length > 0 && `${datasets.reduce((s, d) => s + d.row_count, 0)} total rows across ${datasets.length} table(s)`}
             {documents.length > 0 && `${documents.length} document(s) generated`}
           </p>
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
-          <span className="text-sm font-medium text-[var(--text-secondary)] mr-2">Export:</span>
+          <span className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mr-1">Export:</span>
           {datasets.length > 0 && (
             <>
               <ExportButton label="CSV" onClick={() => handleExport("csv")} disabled={exporting} />
@@ -122,7 +122,7 @@ export default function PreviewPanel({ projectId }: Props) {
       </div>
 
       {datasets.length > 0 && (
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <div className="flex gap-1 bg-white rounded-lg border border-[var(--border)] p-1">
             <button
               onClick={() => setViewMode("table")}

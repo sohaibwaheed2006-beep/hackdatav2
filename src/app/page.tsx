@@ -14,6 +14,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"upload" | "schema" | "config" | "generate" | "preview">("upload");
 
   useEffect(() => {
@@ -117,43 +118,74 @@ export default function Home() {
   }));
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         projects={projects}
         selectedProject={selectedProject}
         onSelect={handleSelectProject}
         onCreateNew={() => setShowCreateModal(true)}
         onDelete={handleDeleteProject}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
       />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10 glass shrink-0 z-20">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-1.5 -ml-1 rounded-xl text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            title="Open projects menu"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+
+          <div className="flex items-center gap-1.5 font-black text-sm">
+            <span className="gradient-text">HackData</span>
+            <span className="text-[var(--text-primary)]">V2</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="btn-3d px-3 py-1.5 text-xs font-bold"
+          >
+            + New
+          </button>
+        </div>
+
         {selectedProject ? (
           <>
-            <header className="glass border-0 border-b border-[var(--glass-border)] px-6 py-4 z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="animate-fade-up">
-                  <h1 className="text-xl font-black tracking-tight">{selectedProject.name}</h1>
+            <header className="glass border-0 border-b border-[var(--glass-border)] px-4 sm:px-6 py-3 sm:py-4 z-10 shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+                <div className="animate-fade-up min-w-0">
+                  <h1 className="text-lg sm:text-xl font-black tracking-tight truncate">{selectedProject.name}</h1>
                   {selectedProject.description && (
-                    <p className="text-sm text-[var(--text-secondary)]">{selectedProject.description}</p>
+                    <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-1">{selectedProject.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => handleDeleteProject(selectedProject)}
                     title="Delete this project"
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all duration-200 flex items-center gap-1.5"
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all duration-200 flex items-center gap-1"
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
-                    Delete Project
+                    Delete
                   </button>
                   <StatusBadge status={selectedProject.status} />
                 </div>
               </div>
-              <nav className="flex gap-1.5">
+              <nav className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
                 {steps.map((step, i) => {
                   const active = activeTab === step.key;
                   return (
@@ -167,9 +199,9 @@ export default function Home() {
                           ? { background: "linear-gradient(120deg, var(--accent), var(--accent-2))" }
                           : {}),
                       }}
-                      className={`underline-sweep ${active ? "active" : ""} animate-fade-up px-4 py-2 text-sm rounded-xl font-semibold transition-all duration-300 ${
+                      className={`underline-sweep ${active ? "active" : ""} animate-fade-up px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
                         active
-                          ? "text-white scale-110 shadow-xl glow-accent"
+                          ? "text-white scale-105 shadow-xl glow-accent"
                           : step.enabled
                           ? "bg-[var(--accent-light)] text-[var(--accent)] hover:-translate-y-0.5 hover:shadow-md hover:scale-105"
                           : "bg-gray-500/10 text-gray-400 cursor-not-allowed"
@@ -182,7 +214,7 @@ export default function Home() {
               </nav>
             </header>
 
-            <div key={activeTab} className="animate-fade-up flex-1 overflow-auto p-6 tilt-scene">
+            <div key={activeTab} className="animate-fade-up flex-1 overflow-auto p-4 sm:p-6 tilt-scene min-w-0">
               {activeTab === "upload" && (
                 <InputUpload
                   project={selectedProject}
@@ -250,21 +282,21 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <h2 className="text-5xl font-black mb-3 tracking-tight tilt-scene">
+              <h2 className="text-3xl sm:text-5xl font-black mb-3 tracking-tight tilt-scene px-2">
                 <span className="gradient-text">Synthetic Data</span>{" "}
                 <span className="gradient-text-2 animate-wobble">Platform</span>
               </h2>
-              <p className="text-[var(--text-secondary)] mb-8 max-w-md mx-auto text-base">
+              <p className="text-[var(--text-secondary)] mb-6 sm:mb-8 max-w-md mx-auto text-sm sm:text-base px-4">
                 Generate realistic, privacy-safe tabular, relational and document data — on demand.
               </p>
-              <div className="flex items-center justify-center gap-3 mb-8">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8 px-2">
                 <FeaturePill label="Tabular" color="var(--accent)" delay={0.1} />
                 <FeaturePill label="Relational" color="var(--accent-2)" delay={0.2} />
                 <FeaturePill label="Documents" color="var(--accent-3)" delay={0.3} />
               </div>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="btn-3d px-10 py-4 font-bold text-lg animate-pulse-glow"
+                className="btn-3d px-6 sm:px-10 py-3 sm:py-4 font-bold text-base sm:text-lg animate-pulse-glow"
               >
                 Create Project ✨
               </button>
