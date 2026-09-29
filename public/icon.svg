@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background Gradient: Deep Roasted Espresso -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1b120c"/>
+      <stop offset="100%" stop-color="#2a1b13"/>
+    </linearGradient>
+
+    <!-- Warm Terracotta & Caramel Gradient -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#df985c"/>
+      <stop offset="50%" stop-color="#c97542"/>
+      <stop offset="100%" stop-color="#8d4925"/>
+    </linearGradient>
+
+    <!-- Warm Ivory & Honey Spark Gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5ece3"/>
+      <stop offset="100%" stop-color="#df985c"/>
+    </linearGradient>
+
+    <!-- Subtle Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base with Warm Sand Border -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bgGrad)" stroke="#c97542" stroke-width="1.5" stroke-opacity="0.45"/>
+
+  <!-- Background Data Grid Accents -->
+  <circle cx="16" cy="16" r="1.5" fill="#df985c" fill-opacity="0.3"/>
+  <circle cx="48" cy="16" r="1.5" fill="#df985c" fill-opacity="0.3"/>
+  <circle cx="16" cy="48" r="1.5" fill="#df985c" fill-opacity="0.3"/>
+  <circle cx="48" cy="48" r="1.5" fill="#df985c" fill-opacity="0.3"/>
+
+  <!-- Left Synthetic Data Column -->
+  <rect x="15" y="16" width="9" height="32" rx="4.5" fill="url(#accentGrad)" filter="url(#glow)"/>
+
+  <!-- Right Synthetic Data Column -->
+  <rect x="40" y="16" width="9" height="32" rx="4.5" fill="url(#accentGrad)" filter="url(#glow)"/>
+
+  <!-- Dynamic Interconnecting Bridge / AI Transformation Pulse -->
+  <path d="M21 32h22" stroke="url(#sparkGrad)" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Central Glowing AI Data Spark -->
+  <circle cx="32" cy="32" r="4.5" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="32" cy="32" r="2.5" fill="#c97542"/>
+
+  <!-- Top-Right Synthesis Node Pulse -->
+  <circle cx="44.5" cy="20.5" r="2.5" fill="#fdfaf6" opacity="0.9"/>
+</svg>

@@ -1,0 +1,7 @@
+ Email ,name,signup_date,balance,country
+m.chen@example.com,Maria Chen,2025-02-11,482.10,US
+,Ahmed Raza,11/02/2025,N/A,PK
+s.ivanova@example.com,Zoë Ünal,2025-01-27,-5,BG
+j.smith@example.com,李雷,NULL,99999999.99,US
+j.smith@example.com,李雷,NULL,99999999.99,US
+a.khan@example.com,Aisha Khan,2025-05-19,,PK
