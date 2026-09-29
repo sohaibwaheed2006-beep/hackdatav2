@@ -37,7 +37,19 @@ export async function POST(req: NextRequest) {
       raw_content: content,
     });
 
-    await supabase.from("projects").update({ data_type: analysis.dataType }).eq("id", projectId);
+    // Respect the user's initial data_type choice from project creation. The
+    // heuristic detector only fires on 2+ invoice/bank_statement field-name
+    // hits, so a generic CSV uploaded under a "document" project would silently
+    // downgrade to "tabular" and skip invoice generation entirely.
+    const { data: currentProject } = await supabase
+      .from("projects")
+      .select("data_type")
+      .eq("id", projectId)
+      .single();
+    const finalDataType: "tabular" | "relational" | "document" =
+      currentProject?.data_type === "document" ? "document" : analysis.dataType;
+
+    await supabase.from("projects").update({ data_type: finalDataType }).eq("id", projectId);
 
     const enhancedTables = [];
     for (const table of analysis.tables) {
@@ -100,7 +112,7 @@ export async function POST(req: NextRequest) {
         null_rate: 0.05,
         outlier_rate: 0.02,
         privacy_level: "medium",
-        document_type: analysis.dataType === "document" ? (analysis.documentType || "invoice") : null,
+        document_type: finalDataType === "document" ? (analysis.documentType || "invoice") : null,
       });
     }
 

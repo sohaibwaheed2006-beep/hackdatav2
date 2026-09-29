@@ -42,28 +42,35 @@ export default function Home() {
     setActiveTab("upload");
   }
 
-  async function handleSelectProject(project: Project) {
+  async function fetchProject(project: Project): Promise<Project | null> {
     try {
       const res = await fetch(`/api/projects/${project.id}`);
       if (!res.ok) {
-        // Stale project ID — drop it from the list and clear selection.
         setProjects((prev) => prev.filter((p) => p.id !== project.id));
         setSelectedProject(null);
-        return;
+        return null;
       }
       const freshProject = await res.json();
       if (!freshProject || !freshProject.id) {
         setSelectedProject(null);
-        return;
+        return null;
       }
       setSelectedProject(freshProject);
-
-      if (["completed", "completed_with_warnings", "failed"].includes(freshProject.status)) setActiveTab("preview");
-      else if (freshProject.status === "configured") setActiveTab("config");
-      else setActiveTab("upload");
+      return freshProject;
     } catch {
       setSelectedProject(null);
+      return null;
     }
+  }
+
+  async function handleSelectProject(project: Project) {
+    const freshProject = await fetchProject(project);
+    if (!freshProject) return;
+
+    if (["completed", "completed_with_warnings", "failed"].includes(freshProject.status)) setActiveTab("preview");
+    else if (freshProject.status === "configured") setActiveTab("config");
+    else if (freshProject.status === "analyzing" && freshProject.data_type === "document") setActiveTab("config");
+    else setActiveTab("upload");
   }
 
   async function handleDeleteProject(project: Project) {
@@ -87,18 +94,23 @@ export default function Home() {
   }
 
   function refreshProject() {
-    if (selectedProject) handleSelectProject(selectedProject);
+    if (selectedProject) fetchProject(selectedProject);
   }
 
   const s = selectedProject?.status || "";
+  const isDocument = selectedProject?.data_type === "document";
   const finishedGeneration = ["completed", "completed_with_warnings", "failed"].includes(s);
-  const steps = [
+  const allSteps = [
     { key: "upload" as const, label: "1. Input", enabled: true },
     { key: "schema" as const, label: "2. Schema", enabled: s !== "" && s !== "draft" },
     { key: "config" as const, label: "3. Configure", enabled: ["configured", "generating"].includes(s) || finishedGeneration },
     { key: "generate" as const, label: "4. Generate", enabled: s === "configured" || finishedGeneration },
     { key: "preview" as const, label: "5. Preview", enabled: finishedGeneration },
   ];
+  const steps = (isDocument ? allSteps.filter((step) => step.key !== "schema") : allSteps).map((step, i) => ({
+    ...step,
+    label: `${i + 1}. ${step.label.replace(/^\d+\.\s*/, "")}`,
+  }));
 
   return (
     <div className="flex h-screen">
@@ -170,9 +182,9 @@ export default function Home() {
               {activeTab === "upload" && (
                 <InputUpload
                   project={selectedProject}
-                  onAnalyzed={() => {
-                    refreshProject();
-                    setActiveTab("schema");
+                  onAnalyzed={async () => {
+                    const fresh = await fetchProject(selectedProject);
+                    setActiveTab(fresh?.data_type === "document" ? "config" : "schema");
                   }}
                 />
               )}

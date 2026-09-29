@@ -68,6 +68,13 @@ export function generateTabularData(
 ): Record<string, unknown>[] {
   const rand = seededRandom(config.random_seed ?? Date.now());
   const rows: Record<string, unknown>[] = [];
+  const uniqueTrackers = new Map<string, Set<unknown>>();
+
+  for (const col of columns) {
+    if (col.isPrimary || col.isUnique || col.isIdentifier) {
+      uniqueTrackers.set(col.name, new Set());
+    }
+  }
 
   for (let i = 0; i < config.row_count; i++) {
     const row: Record<string, unknown> = {};
@@ -94,14 +101,37 @@ export function generateTabularData(
         aiData && aiData[col.name] && aiData[col.name].length > 0
       ) {
         const aiValues = aiData[col.name];
-        const candidate = aiValues[i % aiValues.length];
+        let candidate = aiValues[i % aiValues.length];
+        // When cycling AI content for unique columns, append a suffix to
+        // prevent pk_duplicate / uniqueness validation failures.
+        if (col.isUnique && i >= aiValues.length) {
+          candidate = `${candidate} ${i + 1}`;
+        }
         row[col.name] = isNullToken(candidate)
           ? generateValue(col, i, rand, isOutlier, config)
           : candidate;
-        continue;
+      } else {
+        row[col.name] = generateValue(col, i, rand, isOutlier, config);
       }
 
-      row[col.name] = generateValue(col, i, rand, isOutlier, config);
+      // Enforce strict uniqueness on unique/primary columns
+      if (uniqueTrackers.has(col.name)) {
+        const seen = uniqueTrackers.get(col.name)!;
+        let val = row[col.name];
+        if (val !== null && val !== undefined) {
+          if (seen.has(val)) {
+            if (typeof val === "number") {
+              val = val + i + 1;
+              while (seen.has(val)) (val as number)++;
+            } else {
+              val = `${val}_${i + 1}`;
+              while (seen.has(val)) val = `${val}_${Math.floor(rand() * 1000)}`;
+            }
+            row[col.name] = val;
+          }
+          seen.add(val);
+        }
+      }
     }
 
     rows.push(row);
@@ -141,7 +171,10 @@ function generateValue(
 ): unknown {
   switch (col.type) {
     case "integer": {
-      if (col.isPrimary || col.isIdentifier) return index + 1;
+      if (col.isPrimary || col.isIdentifier || col.isUnique) {
+        const base = (col.minValue !== undefined && col.minValue > 0) ? col.minValue : 1;
+        return base + index;
+      }
       return sampleNumeric(col, rand, isOutlier, true);
     }
 

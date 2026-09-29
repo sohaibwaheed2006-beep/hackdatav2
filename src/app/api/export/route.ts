@@ -9,6 +9,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing projectId or format" }, { status: 400 });
   }
 
+  const SUPPORTED_FORMATS = new Set(["csv", "json", "sql", "pdf"]);
+  if (!SUPPORTED_FORMATS.has(format)) {
+    return NextResponse.json({ error: "Unsupported format" }, { status: 400 });
+  }
+
   const supabase = getServiceClient();
 
   const { data: datasets } = await supabase

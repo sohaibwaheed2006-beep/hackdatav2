@@ -111,9 +111,11 @@ async function handleTabularGeneration(
       // Edge case generation failed
     }
 
-    data = applyPrivacy(data, schema.columns, config.privacy_level);
-
+    // Validate BEFORE privacy masking — masking can collapse unique values
+    // (e.g. emails become "u***@example.com") causing false pk_duplicate errors.
     const { isValid, errors } = validateDataset(data, schema, undefined, undefined, validateOpts);
+
+    data = applyPrivacy(data, schema.columns, config.privacy_level);
 
     if (!best || errors.length < best.errors.length) {
       best = { data, isValid, errors };
@@ -125,15 +127,20 @@ async function handleTabularGeneration(
   const statistics = computeStatistics(result.data, schema.columns);
   const status = decideStatus(result.errors);
 
-  await supabase.from("generated_datasets").insert({
+  const { error: insertError } = await supabase.from("generated_datasets").insert({
     project_id: projectId,
     table_name: schema.table_name,
     row_count: result.data.length,
-    data: result.data,
-    statistics,
+    data: sanitizeForPostgres(result.data),
+    statistics: sanitizeForPostgres(statistics),
     is_valid: status === "completed",
     validation_errors: result.errors,
   });
+
+  if (insertError) {
+    console.error("Failed to insert generated_dataset:", insertError);
+    throw new Error(`Failed to save generated dataset: ${insertError.message}`);
+  }
 
   return status;
 }
@@ -180,16 +187,15 @@ async function handleRelationalGeneration(
     const attemptConfig = varySeed(config, attempt);
     const allData = generateRelationalData(genSchemas, relationships, attemptConfig, aiDataMap);
 
-    const masked: Record<string, Record<string, unknown>[]> = {};
-    for (const schema of schemas) {
-      masked[schema.table_name] = applyPrivacy(allData[schema.table_name] || [], schema.columns, config.privacy_level);
-    }
-
+    // Validate BEFORE privacy masking to avoid false duplicate errors from
+    // collapsed masked values (e.g. emails).
     const results: Record<string, TableResult> = {};
     let totalErrors = 0;
     for (const schema of schemas) {
-      const { isValid, errors } = validateDataset(masked[schema.table_name], schema, masked, relationships, validateOpts);
-      results[schema.table_name] = { data: masked[schema.table_name], isValid, errors };
+      const tableData = allData[schema.table_name] || [];
+      const { isValid, errors } = validateDataset(tableData, schema, allData, relationships, validateOpts);
+      const masked = applyPrivacy(tableData, schema.columns, config.privacy_level);
+      results[schema.table_name] = { data: masked, isValid, errors };
       totalErrors += errors.length;
     }
 
@@ -208,18 +214,40 @@ async function handleRelationalGeneration(
     const perTableStatus = decideStatus(result.errors);
     allErrors.push(...result.errors);
 
-    await supabase.from("generated_datasets").insert({
+    const { error: insertError } = await supabase.from("generated_datasets").insert({
       project_id: projectId,
       table_name: schema.table_name,
       row_count: result.data.length,
-      data: result.data,
-      statistics,
+      data: sanitizeForPostgres(result.data),
+      statistics: sanitizeForPostgres(statistics),
       is_valid: perTableStatus === "completed",
       validation_errors: result.errors,
     });
+
+    if (insertError) {
+      console.error("Failed to insert generated_dataset:", insertError);
+      throw new Error(`Failed to save relational dataset for ${schema.table_name}: ${insertError.message}`);
+    }
   }
 
   return decideStatus(allErrors);
+}
+
+function sanitizeForPostgres<T>(val: T): T {
+  if (typeof val === "string") {
+    return val.replace(/\0/g, "").replace(/\\u0000/gi, "") as unknown as T;
+  }
+  if (Array.isArray(val)) {
+    return val.map(sanitizeForPostgres) as unknown as T;
+  }
+  if (val !== null && typeof val === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      out[k] = sanitizeForPostgres(v);
+    }
+    return out as unknown as T;
+  }
+  return val;
 }
 
 async function handleDocumentGeneration(

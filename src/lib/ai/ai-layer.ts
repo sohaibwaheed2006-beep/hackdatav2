@@ -3,7 +3,10 @@ import { ColumnDef } from "@/types";
 import { isNullToken } from "@/lib/analyzers/data-hygiene";
 
 function scrubStringArray(arr: string[]): string[] {
-  return arr.map((v) => (isNullToken(v) ? `value_${Math.floor(Math.random() * 1000)}` : v));
+  return arr.map((v) => {
+    const s = typeof v === "string" ? v.replace(/\0/g, "").replace(/\\u0000/gi, "") : String(v);
+    return isNullToken(s) ? `value_${Math.floor(Math.random() * 1000)}` : s;
+  });
 }
 
 function maskExample(value: unknown): string {
@@ -362,10 +365,16 @@ Return JSON array of ${count} objects matching this schema. Include:
       0.9
     );
     // Scrub null-like tokens: those must only come from configured null_rate.
+    // Also remove null bytes and \u0000 which Postgres JSONB rejects.
     return rows.map((row) => {
       const clean: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(row)) {
-        clean[k] = isNullToken(v) ? null : v;
+        if (typeof v === "string") {
+          const stripped = v.replace(/\0/g, "").replace(/\\u0000/gi, "");
+          clean[k] = isNullToken(stripped) ? null : stripped;
+        } else {
+          clean[k] = isNullToken(v) ? null : v;
+        }
       }
       return clean;
     });
