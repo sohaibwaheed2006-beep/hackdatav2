@@ -8,6 +8,7 @@ interface SidebarProps {
   onSelect: (project: Project) => void;
   onCreateNew: () => void;
   onDelete?: (project: Project) => void;
+  onHome?: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -18,6 +19,7 @@ export default function Sidebar({
   onSelect,
   onCreateNew,
   onDelete,
+  onHome,
   mobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
@@ -44,10 +46,18 @@ export default function Sidebar({
         style={{ background: "var(--bg-sidebar)", color: "#f7efe7" }}
       >
         <div className="p-4 md:p-5 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              if (onHome) onHome();
+              if (onMobileClose) onMobileClose();
+            }}
+            className="flex items-center gap-2.5 text-left group transition-transform hover:scale-[1.02]"
+            title="Go to Home / Overview"
+          >
             <div className="tilt-scene">
               <div
-                className="animate-spin3d w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
+                className="animate-spin3d w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg group-hover:shadow-amber-500/30"
                 style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))", boxShadow: "var(--glow)" }}
               >
                 H
@@ -60,7 +70,7 @@ export default function Sidebar({
               </h1>
               <p className="text-[10px] text-gray-400 mt-0.5 tracking-widest uppercase">Synthetic Data</p>
             </div>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -75,7 +85,32 @@ export default function Sidebar({
           </button>
         </div>
 
-        <div className="p-3">
+        <div className="p-3 space-y-2">
+          {/* Home / Overview navigation button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onHome) onHome();
+              if (onMobileClose) onMobileClose();
+            }}
+            style={
+              !selectedProject
+                ? { background: "linear-gradient(120deg, var(--accent), var(--accent-2))", boxShadow: "var(--glow)" }
+                : {}
+            }
+            className={`w-full text-left px-3.5 py-2.5 rounded-xl transition-all duration-300 text-sm border flex items-center gap-2.5 ${
+              !selectedProject
+                ? "text-white border-transparent font-bold shadow-lg scale-[1.01]"
+                : "text-[#dcd1c6] border-transparent hover:text-white hover:border-white/10 hover:bg-white/10"
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span className="font-semibold">Home / Overview</span>
+          </button>
+
           <button
             onClick={() => {
               onCreateNew();

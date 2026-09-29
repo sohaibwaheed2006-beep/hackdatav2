@@ -125,6 +125,7 @@ export default function Home() {
         onSelect={handleSelectProject}
         onCreateNew={() => setShowCreateModal(true)}
         onDelete={handleDeleteProject}
+        onHome={() => setSelectedProject(null)}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
@@ -145,10 +146,15 @@ export default function Home() {
             </svg>
           </button>
 
-          <div className="flex items-center gap-1.5 font-black text-sm">
+          <button
+            type="button"
+            onClick={() => setSelectedProject(null)}
+            className="flex items-center gap-1.5 font-black text-sm hover:opacity-85 transition-opacity"
+            title="Go to Home / Overview"
+          >
             <span className="gradient-text">HackData</span>
             <span className="text-[var(--text-primary)]">V2</span>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -163,11 +169,25 @@ export default function Home() {
           <>
             <header className="glass border-0 border-b border-[var(--glass-border)] px-4 sm:px-6 py-3 sm:py-4 z-10 shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
-                <div className="animate-fade-up min-w-0">
-                  <h1 className="text-lg sm:text-xl font-black tracking-tight truncate">{selectedProject.name}</h1>
-                  {selectedProject.description && (
-                    <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-1">{selectedProject.description}</p>
-                  )}
+                <div className="animate-fade-up min-w-0 flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProject(null)}
+                    title="Return to Home / Overview"
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-white hover:bg-[var(--accent)] hover:border-transparent border border-black/10 dark:border-white/10 transition-all duration-200 flex items-center gap-1.5 shrink-0 shadow-sm"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    <span>Home</span>
+                  </button>
+                  <div className="min-w-0">
+                    <h1 className="text-lg sm:text-xl font-black tracking-tight truncate">{selectedProject.name}</h1>
+                    {selectedProject.description && (
+                      <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-1">{selectedProject.description}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                   <button
