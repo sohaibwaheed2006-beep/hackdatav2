@@ -46,20 +46,18 @@ export default function Home() {
     try {
       const res = await fetch(`/api/projects/${project.id}`);
       if (!res.ok) {
-        setProjects((prev) => prev.filter((p) => p.id !== project.id));
-        setSelectedProject(null);
-        return null;
+        console.warn(`Failed to refresh project ${project.id}: HTTP ${res.status}`);
+        return project;
       }
       const freshProject = await res.json();
       if (!freshProject || !freshProject.id) {
-        setSelectedProject(null);
-        return null;
+        return project;
       }
       setSelectedProject(freshProject);
       return freshProject;
-    } catch {
-      setSelectedProject(null);
-      return null;
+    } catch (err) {
+      console.warn("Network error refreshing project:", err);
+      return project;
     }
   }
 
@@ -84,6 +82,11 @@ export default function Home() {
         setProjects((prev) => prev.filter((p) => p.id !== project.id));
         if (selectedProject?.id === project.id) {
           setSelectedProject(null);
+        }
+        try {
+          window.sessionStorage.removeItem(`hackdata:upload:${project.id}`);
+        } catch {
+          // sessionStorage unavailable — nothing to clean up.
         }
       } else {
         const data = await res.json();

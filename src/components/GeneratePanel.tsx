@@ -37,7 +37,7 @@ export default function GeneratePanel({ projectId, onGenerated }: Props) {
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error(
-            "This project no longer exists in the database. It may have been deleted. Please refresh the page and pick another project."
+            data.error || "Project configuration not found. Please review the schema/config step and try again."
           );
         }
         throw new Error(data.error || `Generation failed (HTTP ${res.status})`);

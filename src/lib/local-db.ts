@@ -1,8 +1,11 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import os from "os";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+const DATA_DIR = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? path.join(os.tmpdir(), "hackdata-data")
+  : path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
 interface LocalDBData {
@@ -27,30 +30,37 @@ const defaultData: LocalDBData = {
   export_history: [],
 };
 
+let memoryCache: LocalDBData | null = null;
+
 function ensureDB(): LocalDBData {
+  if (memoryCache) return memoryCache;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(DB_FILE)) {
       fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), "utf-8");
-      return defaultData;
+      memoryCache = { ...defaultData };
+      return memoryCache;
     }
     const content = fs.readFileSync(DB_FILE, "utf-8");
-    return JSON.parse(content) as LocalDBData;
+    memoryCache = JSON.parse(content) as LocalDBData;
+    return memoryCache;
   } catch {
-    return defaultData;
+    if (!memoryCache) memoryCache = { ...defaultData };
+    return memoryCache;
   }
 }
 
 function saveDB(data: LocalDBData) {
+  memoryCache = data;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
   } catch (err) {
-    console.error("Error saving local DB:", err);
+    console.error("Error saving local DB to filesystem (using memory cache):", err);
   }
 }
 

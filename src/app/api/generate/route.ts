@@ -35,31 +35,53 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("project_id", projectId);
 
-    const { data: config } = await supabase
+    let { data: config } = await supabase
       .from("generation_configs")
       .select("*")
       .eq("project_id", projectId)
       .single();
+
+    if (!config) {
+      const defaultConfig = {
+        project_id: projectId,
+        row_count: 50,
+        locale: "en-US",
+        currency: "USD",
+        null_rate: 0.05,
+        outlier_rate: 0.02,
+        privacy_level: "medium",
+        document_type: project.data_type === "document" ? "invoice" : null,
+        business_rules: [],
+      };
+      const { data: created } = await supabase
+        .from("generation_configs")
+        .insert(defaultConfig)
+        .select()
+        .single();
+      config = created || (defaultConfig as unknown as typeof config);
+    }
 
     const { data: relationships } = await supabase
       .from("relationships")
       .select("*")
       .eq("project_id", projectId);
 
-    if (!schemas || schemas.length === 0 || !config) {
-      return NextResponse.json({ error: "No schema or config found" }, { status: 400 });
+    const isDocument = project.data_type === "document";
+    if (!isDocument && (!schemas || schemas.length === 0)) {
+      return NextResponse.json({ error: "No schema found. Please upload and review your schema first." }, { status: 400 });
     }
 
     await supabase.from("generated_datasets").delete().eq("project_id", projectId);
     await supabase.from("generated_documents").delete().eq("project_id", projectId);
 
     let finalStatus: CompletionStatus = "completed";
+    const safeSchemas = (schemas || []) as unknown as DetectedSchema[];
     if (project.data_type === "document") {
       await handleDocumentGeneration(supabase, projectId, config, project);
     } else if (project.data_type === "relational") {
-      finalStatus = await handleRelationalGeneration(supabase, projectId, schemas, relationships || [], config);
+      finalStatus = await handleRelationalGeneration(supabase, projectId, safeSchemas, relationships || [], config);
     } else {
-      finalStatus = await handleTabularGeneration(supabase, projectId, schemas[0], config);
+      finalStatus = await handleTabularGeneration(supabase, projectId, safeSchemas[0], config);
     }
 
     await supabase.from("projects").update({ status: finalStatus }).eq("id", projectId);

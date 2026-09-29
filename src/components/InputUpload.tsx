@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Project } from "@/types";
 
 interface Props {
@@ -8,13 +8,74 @@ interface Props {
   onAnalyzed: () => void;
 }
 
+type FileType = "csv" | "json" | "sql" | "txt";
+
+interface PersistedInput {
+  content: string;
+  fileName: string;
+  fileType: FileType;
+}
+
+const storageKey = (projectId: string) => `hackdata:upload:${projectId}`;
+
+function loadPersistedInput(projectId: string): PersistedInput | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(storageKey(projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedInput>;
+    const ft = parsed.fileType;
+    const validType: FileType =
+      ft === "csv" || ft === "json" || ft === "sql" || ft === "txt" ? ft : "csv";
+    return {
+      content: typeof parsed.content === "string" ? parsed.content : "",
+      fileName: typeof parsed.fileName === "string" ? parsed.fileName : "",
+      fileType: validType,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedInput(projectId: string, value: PersistedInput) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(storageKey(projectId), JSON.stringify(value));
+  } catch {
+    // sessionStorage may be full or disabled — ignore, in-memory state still works.
+  }
+}
+
 export default function InputUpload({ project, onAnalyzed }: Props) {
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("");
-  const [fileType, setFileType] = useState<"csv" | "json" | "sql" | "txt">("csv");
+  const [fileType, setFileType] = useState<FileType>("csv");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hydrated, setHydrated] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore any previously pasted/uploaded content for this project when the
+  // component (re)mounts — e.g. after switching to Schema and back.
+  useEffect(() => {
+    const stored = loadPersistedInput(project.id);
+    if (stored) {
+      setContent(stored.content);
+      setFileName(stored.fileName);
+      setFileType(stored.fileType);
+    } else {
+      setContent("");
+      setFileName("");
+      setFileType("csv");
+    }
+    setHydrated(true);
+  }, [project.id]);
+
+  // Persist changes so pasted input survives tab switches and reloads.
+  useEffect(() => {
+    if (!hydrated) return;
+    savePersistedInput(project.id, { content, fileName, fileType });
+  }, [project.id, content, fileName, fileType, hydrated]);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,6 +138,14 @@ export default function InputUpload({ project, onAnalyzed }: Props) {
     }
   }
 
+  function handleClear() {
+    setContent("");
+    setFileName("");
+    setFileType("csv");
+    setError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   const sampleCSV = `id,name,email,signup_date,balance
 10231,Maria Chen,m.chen@example.com,2025-02-11,482.10
 10232,Ahmed Raza,a.raza@example.com,2025-03-04,129.55
@@ -112,11 +181,11 @@ CREATE TABLE orders (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-2xl font-black mb-1"><span className="gradient-text">Provide</span> Input</h2>
       <p className="text-[var(--text-secondary)] mb-6">
-        Upload a file or paste data. We'll analyze the structure automatically.
+        Upload a file or paste data. We&apos;ll analyze the structure automatically.
       </p>
 
       <div className="glass card-3d spotlight rounded-2xl p-6 mb-4 animate-fade-up">
-        <div className="flex gap-3 mb-4">
+        <div className="flex gap-3 mb-4 flex-wrap items-center">
           <button
             onClick={() => fileInputRef.current?.click()}
             className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-gray-50 text-sm font-medium"
@@ -133,7 +202,7 @@ CREATE TABLE orders (
 
           <select
             value={fileType}
-            onChange={(e) => setFileType(e.target.value as typeof fileType)}
+            onChange={(e) => setFileType(e.target.value as FileType)}
             className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm"
           >
             <option value="csv">CSV</option>
@@ -147,6 +216,17 @@ CREATE TABLE orders (
               {fileName}
             </span>
           )}
+
+          {content && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="ml-auto px-3 py-2 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-gray-50"
+              title="Clear pasted/uploaded input for this project"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         <textarea
@@ -155,6 +235,11 @@ CREATE TABLE orders (
           placeholder="Paste your CSV, JSON, or SQL schema here..."
           className="w-full h-64 px-4 py-3 border border-[var(--border)] rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
         />
+        {content && (
+          <p className="text-xs text-[var(--text-secondary)] mt-2">
+            Your input is preserved when you switch tabs.
+          </p>
+        )}
       </div>
 
       <div className="glass rounded-2xl p-4 mb-6 animate-fade-up delay-2">
