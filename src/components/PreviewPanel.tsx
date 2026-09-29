@@ -170,21 +170,6 @@ export default function PreviewPanel({ projectId }: Props) {
 
       {viewMode === "table" && currentDataset && (
         <div className="glass card-3d rounded-2xl overflow-hidden animate-fade-up">
-          {!currentDataset.is_valid && currentDataset.validation_errors.length > 0 && (
-            <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-700">
-              <div className="font-medium mb-0.5">
-                {currentDataset.validation_errors.length} validation issue(s) found
-              </div>
-              <ul className="text-xs list-disc ml-5">
-                {currentDataset.validation_errors.slice(0, 5).map((e, i) => (
-                  <li key={i}>{e.message}</li>
-                ))}
-                {currentDataset.validation_errors.length > 5 && (
-                  <li className="opacity-70">…and {currentDataset.validation_errors.length - 5} more</li>
-                )}
-              </ul>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
