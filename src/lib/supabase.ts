@@ -7,17 +7,35 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnon
 
 const isPlaceholder =
   !supabaseUrl ||
+  !supabaseAnonKey ||
   supabaseUrl.includes("placeholder") ||
   supabaseUrl.includes("your-project") ||
   !supabaseUrl.startsWith("http");
 
-export const supabase = isPlaceholder
-  ? (createLocalClient() as unknown as ReturnType<typeof createClient>)
-  : createClient(supabaseUrl, supabaseAnonKey);
-
-export function getServiceClient() {
-  if (isPlaceholder) {
+function initSupabase() {
+  try {
+    if (isPlaceholder) {
+      return createLocalClient() as unknown as ReturnType<typeof createClient>;
+    }
+    return createClient(supabaseUrl, supabaseAnonKey);
+  } catch (e) {
+    console.warn("Falling back to local Supabase client:", e);
     return createLocalClient() as unknown as ReturnType<typeof createClient>;
   }
-  return createClient(supabaseUrl, supabaseServiceKey);
 }
+
+export const supabase = initSupabase();
+
+export function getServiceClient() {
+  try {
+    const key = supabaseServiceKey || supabaseAnonKey;
+    if (isPlaceholder || !key) {
+      return createLocalClient() as unknown as ReturnType<typeof createClient>;
+    }
+    return createClient(supabaseUrl, key);
+  } catch (e) {
+    console.warn("Falling back to local Supabase service client:", e);
+    return createLocalClient() as unknown as ReturnType<typeof createClient>;
+  }
+}
+
