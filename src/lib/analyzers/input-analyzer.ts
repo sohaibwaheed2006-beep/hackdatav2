@@ -567,6 +567,91 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Column-name driven defaults for schema-only inputs (SQL DDL, JSON with no
+// samples) so the generator has a sensible profile to sample from instead of
+// falling back to uniform-in-[0,100] numerics and AI-invented categories.
+function applySchemaHeuristics(col: ColumnDef): ColumnDef {
+  const lower = col.name.toLowerCase();
+  const out: ColumnDef = { ...col };
+
+  if (col.isPrimary || lower === "id" || lower.endsWith("_id")) {
+    out.isIdentifier = true;
+  }
+
+  if (out.type === "integer" || out.type === "float" || out.type === "currency") {
+    const profile = numericHintForName(lower, out.type === "integer");
+    if (profile) {
+      out.minValue = profile.min;
+      out.maxValue = profile.max;
+      out.mean = profile.mean;
+      out.stddev = profile.stddev;
+      out.median = profile.mean;
+      out.isInteger = out.type === "integer";
+      out.isSkewed = profile.skewed;
+      out.skewness = profile.skewed ? 1.5 : 0;
+    }
+  }
+
+  // Common enum-like column names — supply sensible defaults so we don't ask
+  // the LLM to invent categories from thin air.
+  if (out.type === "string" || out.type === "text") {
+    const enumHint = enumHintForName(lower);
+    if (enumHint) {
+      out.type = "enum";
+      out.enumValues = enumHint;
+      const freq: Record<string, number> = {};
+      for (const v of enumHint) freq[v] = 1 / enumHint.length;
+      out.frequency = freq;
+    }
+  }
+
+  return out;
+}
+
+interface NumericHint { min: number; max: number; mean: number; stddev: number; skewed: boolean }
+
+function numericHintForName(name: string, integer: boolean): NumericHint | null {
+  if (name === "age" || name.endsWith("_age")) return { min: 18, max: 90, mean: 40, stddev: 15, skewed: false };
+  if (name.includes("year")) return { min: 1980, max: 2025, mean: 2015, stddev: 8, skewed: false };
+  if (name.includes("income") || name.includes("salary") || name.includes("revenue")) {
+    return { min: 20000, max: 300000, mean: 65000, stddev: 40000, skewed: true };
+  }
+  if (name.includes("price") || name.includes("cost") || name.includes("amount") || name.includes("total") || name.includes("balance") || name.includes("fee")) {
+    return { min: 5, max: 5000, mean: 200, stddev: 300, skewed: true };
+  }
+  if (name.includes("quantity") || name.includes("count") || name.includes("qty")) {
+    return { min: 1, max: 100, mean: 10, stddev: 15, skewed: true };
+  }
+  if (name.includes("rating") || name.includes("score") || name.includes("stars")) {
+    return { min: 1, max: 5, mean: 4, stddev: 1, skewed: false };
+  }
+  if (name.includes("percent") || name === "pct") return { min: 0, max: 100, mean: 50, stddev: 25, skewed: false };
+  if (name.includes("weight")) return { min: 40, max: 150, mean: 75, stddev: 15, skewed: false };
+  if (name.includes("height")) return { min: 140, max: 210, mean: 170, stddev: 10, skewed: false };
+  if (integer) return { min: 1, max: 1000, mean: 100, stddev: 100, skewed: true };
+  return { min: 0, max: 1000, mean: 250, stddev: 200, skewed: true };
+}
+
+function enumHintForName(name: string): string[] | null {
+  if (name === "plan" || name.endsWith("_plan") || name === "tier" || name === "subscription") {
+    return ["free", "pro", "team", "enterprise"];
+  }
+  if (name === "status" || name.endsWith("_status") || name === "state") {
+    return ["active", "inactive", "pending"];
+  }
+  if (name === "role" || name === "user_role" || name === "permission") {
+    return ["admin", "user", "guest"];
+  }
+  if (name === "category" || name === "type" || name.endsWith("_type") || name.endsWith("_category")) {
+    return ["standard", "premium", "custom"];
+  }
+  if (name === "priority") return ["low", "medium", "high"];
+  if (name === "gender" || name === "sex") return ["male", "female", "other"];
+  if (name === "country" || name === "country_code") return ["US", "UK", "DE", "FR", "JP", "CA", "AU", "IN"];
+  if (name === "currency" || name === "currency_code") return ["USD", "EUR", "GBP", "JPY", "CAD"];
+  return null;
+}
+
 function buildFrequency(values: string[]): Record<string, number> | undefined {
   if (values.length === 0) return undefined;
   const counts: Record<string, number> = {};

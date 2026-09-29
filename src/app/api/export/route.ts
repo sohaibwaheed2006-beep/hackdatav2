@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
     .select("*")
     .eq("project_id", projectId);
 
+  const { data: relationships } = await supabase
+    .from("relationships")
+    .select("source_table, source_column, target_table, target_column")
+    .eq("project_id", projectId);
+
   if (format === "pdf" && documents && documents.length > 0) {
     const doc = documents[0];
     await supabase.from("export_history").insert({
@@ -73,10 +78,18 @@ export async function POST(req: NextRequest) {
       break;
     }
     case "sql": {
-      content = exportToSQL(
-        filtered,
-        (schemas || []).map((s) => ({ table_name: s.table_name, columns: s.columns as { name: string; type: string }[] }))
+      const filteredNames = new Set(filtered.map((d) => d.table_name));
+      const relevantSchemas = (schemas || [])
+        .filter((s) => filteredNames.has(s.table_name))
+        .map((s) => ({
+          table_name: s.table_name,
+          columns: s.columns as import("@/types").ColumnDef[],
+          primary_keys: (s.primary_keys as string[] | null) || [],
+        }));
+      const relevantRels = (relationships || []).filter(
+        (r) => filteredNames.has(r.source_table) && filteredNames.has(r.target_table)
       );
+      content = exportToSQL(filtered, relevantSchemas, relevantRels);
       contentType = "text/plain";
       fileName = "export.sql";
       break;

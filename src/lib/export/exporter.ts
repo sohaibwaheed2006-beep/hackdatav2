@@ -1,4 +1,4 @@
-import { GeneratedDataset, InvoiceContent, BankStatementContent } from "@/types";
+import { ColumnDef, GeneratedDataset, InvoiceContent, BankStatementContent, Relationship } from "@/types";
 
 export function exportToCSV(dataset: GeneratedDataset): string {
   const data = dataset.data;
@@ -39,35 +39,131 @@ export function exportToJSON(
   return JSON.stringify(result, null, 2);
 }
 
+interface ExportSchema {
+  table_name: string;
+  columns: ColumnDef[];
+  primary_keys?: string[];
+}
+
 export function exportToSQL(
   datasets: GeneratedDataset[],
-  schemas: { table_name: string; columns: { name: string; type: string }[] }[]
+  schemas: ExportSchema[],
+  relationships: Pick<Relationship, "source_table" | "source_column" | "target_table" | "target_column">[] = []
 ): string {
+  const ordered = orderTablesByDependency(schemas, relationships);
+  const datasetByName = new Map(datasets.map((d) => [d.table_name, d]));
   const lines: string[] = [];
 
-  for (const ds of datasets) {
-    const schema = schemas.find((s) => s.table_name === ds.table_name);
-    if (!schema || ds.data.length === 0) continue;
+  for (const schema of ordered) {
+    lines.push(buildCreateTable(schema, relationships));
+  }
+
+  for (const schema of ordered) {
+    const ds = datasetByName.get(schema.table_name);
+    if (!ds || ds.data.length === 0) continue;
 
     const colNames = schema.columns.map((c) => `"${c.name}"`).join(", ");
 
     for (const row of ds.data) {
-      const values = schema.columns
-        .map((col) => {
-          const val = row[col.name];
-          if (val === null || val === undefined) return "NULL";
-          if (typeof val === "number") return String(val);
-          if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
-          return `'${String(val).replace(/'/g, "''")}'`;
-        })
-        .join(", ");
-
-      lines.push(`INSERT INTO "${ds.table_name}" (${colNames}) VALUES (${values});`);
+      const values = schema.columns.map((col) => formatSQLValue(row[col.name], col.type)).join(", ");
+      lines.push(`INSERT INTO "${schema.table_name}" (${colNames}) VALUES (${values});`);
     }
     lines.push("");
   }
 
   return lines.join("\n");
+}
+
+function orderTablesByDependency(
+  schemas: ExportSchema[],
+  relationships: Pick<Relationship, "source_table" | "target_table">[]
+): ExportSchema[] {
+  const byName = new Map(schemas.map((s) => [s.table_name, s]));
+  const deps = new Map<string, Set<string>>();
+  for (const s of schemas) deps.set(s.table_name, new Set());
+  for (const rel of relationships) {
+    if (rel.source_table === rel.target_table) continue;
+    const set = deps.get(rel.source_table);
+    if (set && byName.has(rel.target_table)) set.add(rel.target_table);
+  }
+
+  const sorted: string[] = [];
+  const visited = new Set<string>();
+  const stack = new Set<string>();
+
+  const visit = (name: string) => {
+    if (visited.has(name) || stack.has(name)) return;
+    stack.add(name);
+    for (const dep of deps.get(name) || []) visit(dep);
+    stack.delete(name);
+    visited.add(name);
+    sorted.push(name);
+  };
+
+  for (const s of schemas) visit(s.table_name);
+  return sorted.map((n) => byName.get(n)!).filter(Boolean);
+}
+
+function buildCreateTable(
+  schema: ExportSchema,
+  relationships: Pick<Relationship, "source_table" | "source_column" | "target_table" | "target_column">[]
+): string {
+  const colDefs = schema.columns.map((c) => {
+    const parts = [`  "${c.name}" ${sqlTypeFor(c)}`];
+    if (!c.nullable) parts.push("NOT NULL");
+    if (c.isUnique && !c.isPrimary) parts.push("UNIQUE");
+    return parts.join(" ");
+  });
+
+  const pks = schema.primary_keys && schema.primary_keys.length > 0
+    ? schema.primary_keys
+    : schema.columns.filter((c) => c.isPrimary).map((c) => c.name);
+  if (pks.length > 0) {
+    colDefs.push(`  PRIMARY KEY (${pks.map((k) => `"${k}"`).join(", ")})`);
+  }
+
+  const fks = relationships.filter((r) => r.source_table === schema.table_name);
+  for (const fk of fks) {
+    colDefs.push(
+      `  FOREIGN KEY ("${fk.source_column}") REFERENCES "${fk.target_table}" ("${fk.target_column}")`
+    );
+  }
+
+  return `CREATE TABLE IF NOT EXISTS "${schema.table_name}" (\n${colDefs.join(",\n")}\n);\n`;
+}
+
+function sqlTypeFor(col: ColumnDef): string {
+  switch (col.type) {
+    case "integer": return "INTEGER";
+    case "float":
+    case "currency": return "NUMERIC";
+    case "boolean": return "BOOLEAN";
+    case "date": return "DATE";
+    case "datetime": return "TIMESTAMP";
+    case "uuid": return "UUID";
+    case "text": return "TEXT";
+    case "email":
+    case "phone":
+    case "enum":
+    case "string":
+    default: return "VARCHAR(255)";
+  }
+}
+
+function formatSQLValue(val: unknown, type: ColumnDef["type"]): string {
+  if (val === null || val === undefined) return "NULL";
+  if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+  if (typeof val === "number") return Number.isFinite(val) ? String(val) : "NULL";
+  const str = String(val);
+  if ((type === "integer" || type === "float" || type === "currency") && /^-?\d+(\.\d+)?$/.test(str)) {
+    return str;
+  }
+  if (type === "boolean") {
+    const lower = str.toLowerCase();
+    if (["true", "1", "yes"].includes(lower)) return "TRUE";
+    if (["false", "0", "no"].includes(lower)) return "FALSE";
+  }
+  return `'${str.replace(/'/g, "''")}'`;
 }
 
 export function invoiceToHTML(invoice: InvoiceContent): string {
