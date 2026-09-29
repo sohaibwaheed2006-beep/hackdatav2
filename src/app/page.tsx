@@ -150,7 +150,7 @@ export default function Home() {
             type="button"
             onClick={() => setSelectedProject(null)}
             className="flex items-center gap-1.5 font-black text-sm hover:opacity-85 transition-opacity"
-            title="Go to Home / Overview"
+            title="Go to Home"
           >
             <span className="gradient-text">HackData</span>
             <span className="text-[var(--text-primary)]">V2</span>
@@ -173,7 +173,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setSelectedProject(null)}
-                    title="Return to Home / Overview"
+                    title="Return to Home"
                     className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-white hover:bg-[var(--accent)] hover:border-transparent border border-black/10 dark:border-white/10 transition-all duration-200 flex items-center gap-1.5 shrink-0 shadow-sm"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
