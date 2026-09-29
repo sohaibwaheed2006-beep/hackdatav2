@@ -67,9 +67,10 @@ export default function Home() {
     const freshProject = await fetchProject(project);
     if (!freshProject) return;
 
-    if (["completed", "completed_with_warnings", "failed"].includes(freshProject.status)) setActiveTab("preview");
-    else if (freshProject.status === "configured") setActiveTab("config");
-    else if (freshProject.status === "analyzing" && freshProject.data_type === "document") setActiveTab("config");
+    const status = freshProject.status || "draft";
+    if (["completed", "completed_with_warnings", "failed"].includes(status)) setActiveTab("preview");
+    else if (status === "configured") setActiveTab("config");
+    else if (status === "analyzing" && freshProject.data_type === "document") setActiveTab("config");
     else setActiveTab("upload");
   }
 
@@ -295,7 +296,8 @@ function FeaturePill({ label, color, delay }: { label: string; color: string; de
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: { status?: string | null }) {
+  const safeStatus = (status || "draft").toLowerCase();
   const colors: Record<string, string> = {
     draft: "bg-gray-100 text-gray-600",
     analyzing: "bg-blue-100 text-blue-700",
@@ -309,13 +311,21 @@ function StatusBadge({ status }: { status: string }) {
 
   const labels: Record<string, string> = {
     completed_with_warnings: "Completed with warnings",
+    draft: "Draft",
+    analyzing: "Analyzing",
+    configured: "Configured",
+    generating: "Generating",
+    completed: "Completed",
+    failed: "Failed",
+    error: "Error",
   };
 
-  const pulse = status === "generating" || status === "analyzing" ? "animate-pulse" : "";
-  const label = labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
+  const pulse = safeStatus === "generating" || safeStatus === "analyzing" ? "animate-pulse" : "";
+  const label = labels[safeStatus] || (safeStatus ? safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1) : "Draft");
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold border border-white/20 backdrop-blur-sm ${colors[status] || colors.draft} ${pulse}`}>
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold border border-white/20 backdrop-blur-sm ${colors[safeStatus] || colors.draft} ${pulse}`}>
       {label}
     </span>
   );
 }
+
