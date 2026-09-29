@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
-import { generateTabularData, applyPrivacy, applyBusinessRules, generateValue, seededRandom } from "@/lib/generators/tabular-engine";
+import { generateTabularData, applyPrivacy, applyBusinessRules, generateValue, seededRandom, isStructuralColumn } from "@/lib/generators/tabular-engine";
 import { generateRelationalData } from "@/lib/generators/relational-engine";
 import { generateInvoices, generateBankStatements } from "@/lib/generators/document-engine";
 import { generateAIContent, generateDocumentAIContent, generateEdgeCases } from "@/lib/ai/ai-layer";
@@ -112,15 +112,16 @@ async function handleTabularGeneration(
             const targetIdx = startIndex + e;
             const originalRow = data[targetIdx];
             const edgeRow = edgeCases[e];
-            const merged = { ...originalRow };
+            const merged = { ...originalRow, is_edge_case: true };
 
             for (const col of schema.columns) {
-              // Never touch primary keys, unique columns, or identifiers with edge cases
-              if (col.isPrimary || col.isUnique || col.isIdentifier) continue;
+              // Never touch primary keys, unique columns, identifiers, structural columns, names, emails, or phones with edge cases
+              const lower = col.name.toLowerCase();
+              if (col.isPrimary || col.isUnique || col.isIdentifier || isStructuralColumn(col) || lower.includes("name") || col.type === "email" || col.type === "phone") continue;
 
               const val = edgeRow[col.name];
-              // Never inject null if column is not nullable
-              if (!col.nullable && (val === null || val === undefined)) continue;
+              // Never inject null if column is not nullable or is structural
+              if ((!col.nullable || isStructuralColumn(col)) && (val === null || val === undefined)) continue;
 
               // Never inject value if it doesn't match the column type
               if (val !== null && val !== undefined && !isValidType(val, col.type)) continue;
@@ -140,11 +141,24 @@ async function handleTabularGeneration(
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       for (const col of schema.columns) {
-        const val = row[col.name];
-        if (!col.nullable && (val === null || val === undefined)) {
-          row[col.name] = generateValue(col, i, healRand, false, config);
+        const isStructural = isStructuralColumn(col);
+        let val = row[col.name];
+        if ((!col.nullable || isStructural) && (val === null || val === undefined)) {
+          val = generateValue(col, i, healRand, false, config);
+          row[col.name] = val;
         } else if (val !== null && val !== undefined && !isValidType(val, col.type)) {
-          row[col.name] = generateValue(col, i, healRand, false, config);
+          val = generateValue(col, i, healRand, false, config);
+          row[col.name] = val;
+        }
+        // Ensure currency and balance columns are formatted with exactly 2 decimals (68.00, not 68)
+        if (val !== null && val !== undefined) {
+          const lower = col.name.toLowerCase();
+          if (col.type === "currency" || lower === "balance" || lower.endsWith("_balance")) {
+            const num = typeof val === "number" ? val : parseFloat(String(val));
+            if (!isNaN(num)) {
+              row[col.name] = num.toFixed(2);
+            }
+          }
         }
       }
     }
@@ -235,11 +249,23 @@ async function handleRelationalGeneration(
       for (let i = 0; i < tableData.length; i++) {
         const row = tableData[i];
         for (const col of schema.columns) {
-          const val = row[col.name];
-          if (!col.nullable && (val === null || val === undefined)) {
-            row[col.name] = generateValue(col, i, healRand, false, config);
+          const isStructural = isStructuralColumn(col);
+          let val = row[col.name];
+          if ((!col.nullable || isStructural) && (val === null || val === undefined)) {
+            val = generateValue(col, i, healRand, false, config);
+            row[col.name] = val;
           } else if (val !== null && val !== undefined && !isValidType(val, col.type)) {
-            row[col.name] = generateValue(col, i, healRand, false, config);
+            val = generateValue(col, i, healRand, false, config);
+            row[col.name] = val;
+          }
+          if (val !== null && val !== undefined) {
+            const lower = col.name.toLowerCase();
+            if (col.type === "currency" || lower === "balance" || lower.endsWith("_balance")) {
+              const num = typeof val === "number" ? val : parseFloat(String(val));
+              if (!isNaN(num)) {
+                row[col.name] = num.toFixed(2);
+              }
+            }
           }
         }
       }

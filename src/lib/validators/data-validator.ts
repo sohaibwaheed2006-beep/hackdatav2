@@ -57,7 +57,9 @@ export function validateDataset(
   }
 
   const expectedCols = new Set(schema.columns.map((c) => c.name));
-  const actualCols = new Set(Object.keys(data[0]));
+  const actualCols = new Set(
+    Object.keys(data[0]).filter((k) => k !== "is_edge_case" || expectedCols.has("is_edge_case"))
+  );
   if (expectedCols.size !== actualCols.size || [...expectedCols].some((c) => !actualCols.has(c))) {
     errors.push({
       type: "column_count_mismatch",
@@ -272,7 +274,7 @@ export function isValidType(value: unknown, type: ColumnDef["type"]): boolean {
       return typeof value === "number" && Number.isInteger(value);
     case "float":
     case "currency":
-      return typeof value === "number";
+      return typeof value === "number" || (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value));
     case "boolean":
       return typeof value === "boolean";
     case "date":

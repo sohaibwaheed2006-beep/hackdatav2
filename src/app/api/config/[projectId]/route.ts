@@ -26,9 +26,11 @@ export async function PATCH(
   const body = await req.json();
   const supabase = getServiceClient();
 
+  const { projectId: _p, id: _id, ...updates } = body;
+
   const { data, error } = await supabase
     .from("generation_configs")
-    .update(body)
+    .update(updates)
     .eq("project_id", projectId)
     .select()
     .single();

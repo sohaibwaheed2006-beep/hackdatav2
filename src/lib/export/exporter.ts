@@ -12,6 +12,9 @@ export function exportToCSV(dataset: GeneratedDataset): string {
         .map((h) => {
           const val = row[h];
           if (val === null || val === undefined) return "";
+          if (typeof val === "number" && (h.toLowerCase().includes("balance") || h.toLowerCase().includes("price") || h.toLowerCase().includes("salary") || h.toLowerCase().includes("cost") || h.toLowerCase().includes("amount") || h.toLowerCase().includes("total"))) {
+            return val.toFixed(2);
+          }
           const str = String(val);
           if (str.includes(",") || str.includes('"') || str.includes("\n")) {
             return `"${str.replace(/"/g, '""')}"`;
@@ -153,9 +156,16 @@ function sqlTypeFor(col: ColumnDef): string {
 function formatSQLValue(val: unknown, type: ColumnDef["type"]): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
-  if (typeof val === "number") return Number.isFinite(val) ? String(val) : "NULL";
+  if (typeof val === "number") {
+    if (!Number.isFinite(val)) return "NULL";
+    if (type === "currency") return val.toFixed(2);
+    return String(val);
+  }
   const str = String(val);
-  if ((type === "integer" || type === "float" || type === "currency") && /^-?\d+(\.\d+)?$/.test(str)) {
+  if (type === "currency" && /^-?\d+(\.\d+)?$/.test(str)) {
+    return parseFloat(str).toFixed(2);
+  }
+  if ((type === "integer" || type === "float") && /^-?\d+(\.\d+)?$/.test(str)) {
     return str;
   }
   if (type === "boolean") {

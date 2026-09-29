@@ -1,6 +1,7 @@
 import { callGrokJSON } from "@/lib/grok";
 import { ColumnDef } from "@/types";
 import { isNullToken } from "@/lib/analyzers/data-hygiene";
+import { getDistinctPerson } from "@/lib/generators/tabular-engine";
 
 function scrubStringArray(arr: string[]): string[] {
   return arr.map((v) => {
@@ -71,9 +72,7 @@ function generateLocalSyntheticValues(colName: string, count: number): string[] 
 
   for (let i = 0; i < count; i++) {
     if (lower.includes("name") && !lower.includes("company") && !lower.includes("file")) {
-      const first = FIRST_NAMES[i % FIRST_NAMES.length];
-      const last = LAST_NAMES[(i * 3) % LAST_NAMES.length];
-      list.push(`${first} ${last}`);
+      list.push(getDistinctPerson(i).fullName);
     } else if (lower.includes("company") || lower.includes("organization") || lower.includes("vendor")) {
       list.push(COMPANIES[i % COMPANIES.length]);
     } else if (lower.includes("address") || lower.includes("location") || lower.includes("city")) {
@@ -83,11 +82,19 @@ function generateLocalSyntheticValues(colName: string, count: number): string[] 
     } else if (lower.includes("desc") || lower.includes("comment") || lower.includes("review") || lower.includes("summary")) {
       list.push(DESCRIPTIONS[i % DESCRIPTIONS.length]);
     } else if (lower.includes("email")) {
-      const first = FIRST_NAMES[i % FIRST_NAMES.length].toLowerCase();
-      const last = LAST_NAMES[(i * 3) % LAST_NAMES.length].toLowerCase();
-      list.push(`${first}.${last}@example.com`);
+      list.push(getDistinctPerson(i).email);
+    } else if (lower.includes("tracking") || lower.includes("shipment")) {
+      list.push(`TRK-${100000 + ((i * 7919 + 104729) % 900000)}`);
+    } else if (lower.startsWith("pk_") || lower.endsWith("_pk") || lower.startsWith("id_")) {
+      list.push(`PK-${String(i + 1).padStart(5, "0")}`);
+    } else if (lower.startsWith("fk_") || lower.endsWith("_fk")) {
+      list.push(`FK-${String(i + 1).padStart(5, "0")}`);
+    } else if (lower.includes("order")) {
+      list.push(`ORD-${10000 + i + 1}`);
+    } else if (lower.includes("code") || lower.includes("sku") || lower.endsWith("_no") || lower.endsWith("_key")) {
+      list.push(`CODE-${String(1000 + i + 1)}`);
     } else {
-      list.push(`${colName}_${i + 1}`);
+      list.push(`VAL-${String(1000 + i + 1)}`);
     }
   }
 
@@ -111,7 +118,7 @@ export async function generateAIContent(
 
   if (aiColumns.length === 0) return {};
 
-  const batchSize = Math.min(rowCount, 50);
+  const batchSize = Math.min(rowCount, 100);
   const prompt = buildContentPrompt(aiColumns, batchSize, locale);
 
   try {
@@ -135,9 +142,22 @@ export async function generateAIContent(
     if (rowCount > batchSize) {
       const expanded: AIGeneratedContent = {};
       for (const [key, values] of Object.entries(scrubbed)) {
+        const lower = key.toLowerCase();
         expanded[key] = [];
         for (let i = 0; i < rowCount; i++) {
-          expanded[key].push(values[i % values.length]);
+          if (i < values.length) {
+            expanded[key].push(values[i]);
+          } else if (lower.includes("name") && !lower.includes("company") && !lower.includes("file")) {
+            expanded[key].push(getDistinctPerson(i).fullName);
+          } else if (lower.includes("email")) {
+            expanded[key].push(getDistinctPerson(i).email);
+          } else if (lower.includes("tracking") || lower.includes("shipment")) {
+            expanded[key].push(`TRK-${100000 + ((i * 7919 + 104729) % 900000)}`);
+          } else if (lower.startsWith("pk_") || lower.endsWith("_pk") || lower.startsWith("id_")) {
+            expanded[key].push(`PK-${String(i + 1).padStart(5, "0")}`);
+          } else {
+            expanded[key].push(values[i % values.length]);
+          }
         }
       }
       return expanded;
@@ -394,8 +414,14 @@ function fallbackForColumn(col: ColumnDef, index: number): unknown {
       const clean = (col.enumValues || []).filter((v) => !isNullToken(v));
       return clean[index % clean.length] ?? `value_${index}`;
     }
-    default:
-      return `${col.name}_edge_${index + 1}`;
+    default: {
+      const lower = col.name.toLowerCase();
+      if (lower.includes("name")) return getDistinctPerson(index).fullName;
+      if (lower.includes("tracking") || lower.includes("shipment")) return `TRK-${100000 + ((index * 7919 + 104729) % 900000)}`;
+      if (lower.startsWith("pk_") || lower.endsWith("_pk")) return `PK-${String(index + 1).padStart(5, "0")}`;
+      if (lower.includes("code") || lower.includes("sku") || lower.endsWith("_no") || lower.endsWith("_key")) return `CODE-${String(1000 + index + 1)}`;
+      return `VAL-${String(1000 + index + 1)}`;
+    }
   }
 }
 
