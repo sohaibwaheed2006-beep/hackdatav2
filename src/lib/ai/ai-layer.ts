@@ -337,47 +337,140 @@ Do not invent new column names. Do not include raw row data.`;
   return { columns, suggestions: [] };
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidForType(value: unknown, type: ColumnDef["type"]): boolean {
+  switch (type) {
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "float":
+    case "currency":
+      return typeof value === "number" && !isNaN(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "date":
+    case "datetime":
+      return typeof value === "string" && !isNaN(Date.parse(value));
+    case "email":
+      return typeof value === "string" && EMAIL_RE.test(value);
+    default:
+      return true;
+  }
+}
+
+function fallbackForColumn(col: ColumnDef, index: number): unknown {
+  switch (col.type) {
+    case "integer": {
+      const base = col.minValue !== undefined ? Math.ceil(col.minValue) : 1;
+      return base + index;
+    }
+    case "float":
+    case "currency": {
+      const lo = col.minValue ?? 0;
+      const hi = col.maxValue ?? lo + 1000;
+      const mid = (lo + hi) / 2;
+      return Math.round(mid * 100) / 100;
+    }
+    case "boolean":
+      return index % 2 === 0;
+    case "date":
+      return new Date(Date.UTC(2024, 0, 1 + (index % 28))).toISOString().slice(0, 10);
+    case "datetime":
+      return new Date(Date.UTC(2024, 0, 1 + (index % 28))).toISOString();
+    case "email": {
+      const first = FIRST_NAMES[index % FIRST_NAMES.length].toLowerCase();
+      const last = LAST_NAMES[(index * 3) % LAST_NAMES.length].toLowerCase();
+      return `${first}.${last}${index}@example.com`;
+    }
+    case "phone": {
+      const area = 200 + (index % 700);
+      const mid = 200 + ((index * 7) % 700);
+      const last = 1000 + ((index * 13) % 9000);
+      return `+1-${area}-${mid}-${last}`;
+    }
+    case "uuid":
+      return `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+    case "enum": {
+      const clean = (col.enumValues || []).filter((v) => !isNullToken(v));
+      return clean[index % clean.length] ?? `value_${index}`;
+    }
+    default:
+      return `${col.name}_edge_${index + 1}`;
+  }
+}
+
+function repairEdgeCaseRow(
+  row: Record<string, unknown>,
+  columns: ColumnDef[],
+  rowIndex: number
+): Record<string, unknown> {
+  const repaired: Record<string, unknown> = {};
+  for (const col of columns) {
+    let v = row[col.name];
+    if (typeof v === "string") {
+      v = v.replace(/\0/g, "").replace(/\\u0000/gi, "");
+    }
+    if (isNullToken(v)) v = null;
+
+    if (v === null || v === undefined) {
+      repaired[col.name] = col.nullable ? null : fallbackForColumn(col, rowIndex);
+      continue;
+    }
+
+    if (!isValidForType(v, col.type)) {
+      repaired[col.name] = fallbackForColumn(col, rowIndex);
+      continue;
+    }
+
+    repaired[col.name] = v;
+  }
+  return repaired;
+}
+
 export async function generateEdgeCases(
   columns: ColumnDef[],
   count: number
 ): Promise<Record<string, unknown>[]> {
+  const nonNullable = columns.filter((c) => !c.nullable).map((c) => c.name);
+  const typedCols = columns
+    .filter((c) => ["email", "date", "datetime", "integer", "float", "currency", "boolean", "uuid", "phone"].includes(c.type))
+    .map((c) => `${c.name} (${c.type})`);
+
+  const constraintNotes: string[] = [];
+  if (nonNullable.length > 0) {
+    constraintNotes.push(`- These columns MUST NOT be null: ${nonNullable.join(", ")}.`);
+  }
+  if (typedCols.length > 0) {
+    constraintNotes.push(`- Values for these columns must remain valid for their type: ${typedCols.join(", ")}.`);
+  }
+
   const prompt = `Generate ${count} edge-case rows for testing. These should include boundary values, unusual but valid data, and tricky inputs.
 
 Schema:
-${columns.map((c) => `- ${c.name}: ${c.type}${c.nullable ? " (nullable)" : ""}`).join("\n")}
+${columns.map((c) => `- ${c.name}: ${c.type}${c.nullable ? " (nullable)" : " (required)"}`).join("\n")}
+
+Constraints (must be satisfied by every row):
+${constraintNotes.join("\n") || "- (none)"}
 
 Return JSON array of ${count} objects matching this schema. Include:
-- Boundary values (empty strings, very long strings, max integers)
-- Special characters in text fields
-- Dates at boundaries (leap years, end of month)
-- Zero and negative values where numeric
-- Unicode characters in name/text fields`;
+- Boundary values (very long strings, near-max integers) for text/numeric fields
+- Special characters and Unicode in free-text fields (name/description/comment)
+- Dates at boundaries (leap years, end of month) — still valid ISO dates
+- Zero and small values where numeric (respect any implied minimum)
+Do not violate the constraints above.`;
 
   try {
     const rows = await callGrokJSON<Record<string, unknown>[]>(
       [
         {
           role: "system",
-          content: "Generate edge case test data. Return valid JSON array only.",
+          content: "Generate edge case test data. Return valid JSON array only. Never violate nullability or type constraints.",
         },
         { role: "user", content: prompt },
       ],
       0.9
     );
-    // Scrub null-like tokens: those must only come from configured null_rate.
-    // Also remove null bytes and \u0000 which Postgres JSONB rejects.
-    return rows.map((row) => {
-      const clean: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(row)) {
-        if (typeof v === "string") {
-          const stripped = v.replace(/\0/g, "").replace(/\\u0000/gi, "");
-          clean[k] = isNullToken(stripped) ? null : stripped;
-        } else {
-          clean[k] = isNullToken(v) ? null : v;
-        }
-      }
-      return clean;
-    });
+    return rows.map((row, i) => repairEdgeCaseRow(row, columns, i));
   } catch {
     return [];
   }

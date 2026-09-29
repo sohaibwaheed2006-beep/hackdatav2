@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
-import { generateTabularData, applyPrivacy, applyBusinessRules } from "@/lib/generators/tabular-engine";
+import { generateTabularData, applyPrivacy, applyBusinessRules, generateValue, seededRandom } from "@/lib/generators/tabular-engine";
 import { generateRelationalData } from "@/lib/generators/relational-engine";
 import { generateInvoices, generateBankStatements } from "@/lib/generators/document-engine";
 import { generateAIContent, generateDocumentAIContent, generateEdgeCases } from "@/lib/ai/ai-layer";
-import { validateDataset, computeStatistics, decideStatus, CompletionStatus } from "@/lib/validators/data-validator";
+import { validateDataset, computeStatistics, decideStatus, CompletionStatus, isValidType } from "@/lib/validators/data-validator";
 import { invoiceToHTML, bankStatementToHTML } from "@/lib/export/exporter";
 import { DetectedSchema, GenerationConfig, Relationship } from "@/types";
 
@@ -103,12 +103,50 @@ async function handleTabularGeneration(
     let data = generateTabularData(genColumns, attemptConfig, aiData);
 
     try {
-      const edgeCases = await generateEdgeCases(schema.columns, Math.min(5, Math.floor(config.row_count * 0.05)));
-      if (edgeCases.length > 0) {
-        data = [...data.slice(0, data.length - edgeCases.length), ...edgeCases];
+      const edgeCount = Math.min(5, Math.floor(config.row_count * 0.05));
+      if (edgeCount > 0) {
+        const edgeCases = await generateEdgeCases(schema.columns, edgeCount);
+        if (edgeCases.length > 0) {
+          const startIndex = data.length - edgeCases.length;
+          for (let e = 0; e < edgeCases.length; e++) {
+            const targetIdx = startIndex + e;
+            const originalRow = data[targetIdx];
+            const edgeRow = edgeCases[e];
+            const merged = { ...originalRow };
+
+            for (const col of schema.columns) {
+              // Never touch primary keys, unique columns, or identifiers with edge cases
+              if (col.isPrimary || col.isUnique || col.isIdentifier) continue;
+
+              const val = edgeRow[col.name];
+              // Never inject null if column is not nullable
+              if (!col.nullable && (val === null || val === undefined)) continue;
+
+              // Never inject value if it doesn't match the column type
+              if (val !== null && val !== undefined && !isValidType(val, col.type)) continue;
+
+              merged[col.name] = val;
+            }
+            data[targetIdx] = merged;
+          }
+        }
       }
     } catch {
       // Edge case generation failed
+    }
+
+    // Auto-heal any invalid types or non-nullable nulls before validation
+    const healRand = seededRandom((config.random_seed ?? Date.now()) + attempt + 777);
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      for (const col of schema.columns) {
+        const val = row[col.name];
+        if (!col.nullable && (val === null || val === undefined)) {
+          row[col.name] = generateValue(col, i, healRand, false, config);
+        } else if (val !== null && val !== undefined && !isValidType(val, col.type)) {
+          row[col.name] = generateValue(col, i, healRand, false, config);
+        }
+      }
     }
 
     // Validate BEFORE privacy masking — masking can collapse unique values
@@ -193,6 +231,18 @@ async function handleRelationalGeneration(
     let totalErrors = 0;
     for (const schema of schemas) {
       const tableData = allData[schema.table_name] || [];
+      const healRand = seededRandom((config.random_seed ?? Date.now()) + attempt + 888);
+      for (let i = 0; i < tableData.length; i++) {
+        const row = tableData[i];
+        for (const col of schema.columns) {
+          const val = row[col.name];
+          if (!col.nullable && (val === null || val === undefined)) {
+            row[col.name] = generateValue(col, i, healRand, false, config);
+          } else if (val !== null && val !== undefined && !isValidType(val, col.type)) {
+            row[col.name] = generateValue(col, i, healRand, false, config);
+          }
+        }
+      }
       const { isValid, errors } = validateDataset(tableData, schema, allData, relationships, validateOpts);
       const masked = applyPrivacy(tableData, schema.columns, config.privacy_level);
       results[schema.table_name] = { data: masked, isValid, errors };

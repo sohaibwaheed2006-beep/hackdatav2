@@ -162,7 +162,7 @@ function sampleNormal(rand: () => number): number {
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
-function generateValue(
+export function generateValue(
   col: ColumnDef,
   index: number,
   rand: () => number,

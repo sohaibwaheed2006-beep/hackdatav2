@@ -266,7 +266,7 @@ function validateNullRate(
   }
 }
 
-function isValidType(value: unknown, type: ColumnDef["type"]): boolean {
+export function isValidType(value: unknown, type: ColumnDef["type"]): boolean {
   switch (type) {
     case "integer":
       return typeof value === "number" && Number.isInteger(value);
