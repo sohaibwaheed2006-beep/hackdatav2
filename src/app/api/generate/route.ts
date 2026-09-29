@@ -112,7 +112,7 @@ async function handleTabularGeneration(
             const targetIdx = startIndex + e;
             const originalRow = data[targetIdx];
             const edgeRow = edgeCases[e];
-            const merged = { ...originalRow, is_edge_case: true };
+            const merged: Record<string, unknown> = { ...originalRow, is_edge_case: true };
 
             for (const col of schema.columns) {
               // Never touch primary keys, unique columns, identifiers, structural columns, names, emails, or phones with edge cases
